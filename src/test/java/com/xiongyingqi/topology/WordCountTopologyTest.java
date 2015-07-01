@@ -28,16 +28,23 @@ public class WordCountTopologyTest {
         ReportBolt reportBolt = new ReportBolt();
 
         TopologyBuilder builder = new TopologyBuilder();
+        // 注册一个sentence spout，并且赋予一个唯一值
         builder.setSpout(SENTENCE_SPOUT_ID, spout);
+        // 然后注册一个SplitSentenceBolt，这个bolt订阅SentenceSpout发射出来的数据流
+        // 将SentenceSpout的唯一ID赋值给shuffleGrouping()方法确立了这种订阅关系
+        // shuffleGrouping()方法告诉storm，要将SentenceSpout发射出来的tuple随机均匀的分发给SplitSentenceBolt的实例
         builder.setBolt(SPLIT_BOLT_ID, splitSentenceBolt).shuffleGrouping(SENTENCE_SPOUT_ID);
+        // 将含有特定数据的tuple路由到特殊的bolt实例中
+        // 此处使用BoltDeclarer的fieldsGrouping()方法保证所有“word”字段值相同的tuple会被路由到同一个WordCountBolt实例中
         builder.setBolt(COUNT_BOLT_ID, countBolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
+        // 将WordCountBolt发出的所有tuple流路由到唯一的ReportBolt中，使用globalGrouping
         builder.setBolt(REPORT_BOLT_ID, reportBolt).globalGrouping(COUNT_BOLT_ID);
 
         Config config = new Config();
         LocalCluster cluster = new LocalCluster();
         cluster.submitTopology(TOPOLOGY_NAME, config, builder.createTopology());
 
-        Thread.sleep(100);
+        Thread.sleep(10000);
         cluster.killTopology(TOPOLOGY_NAME);
         cluster.shutdown();
     }
